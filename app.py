@@ -133,7 +133,7 @@ def chat_page():
             'is_read': chat['is_read'] if chat['last_sender_id'] != session['user_id'] else True
         })
 
-    return render_template('chat.html',
+    return render_template('index.html',
                            user=user,
                            chats=chat_list,
                            contacts=contacts,
