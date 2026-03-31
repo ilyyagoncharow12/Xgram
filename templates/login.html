@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xgram - Вход</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            font-size: 36px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            color: #6b7280;
+            transition: all 0.3s;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .form {
+            display: none;
+        }
+
+        .form.active {
+            display: block;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #374151;
+            font-weight: 500;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .note {
+            text-align: center;
+            margin-top: 20px;
+            color: #6b7280;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="logo">
+                <h1>Xgram</h1>
+                <p style="color: #6b7280; margin-top: 8px;">Добро пожаловать в Xgram</p>
+            </div>
+
+            <div class="tabs">
+                <div class="tab active" data-tab="login">Вход</div>
+                <div class="tab" data-tab="register">Регистрация</div>
+            </div>
+
+            {% if error %}
+            <div class="error">{{ error }}</div>
+            {% endif %}
+
+            <!-- Login Form -->
+            <form id="login-form" class="form active" method="POST" action="/login">
+                <div class="input-group">
+                    <label>Номер телефона</label>
+                    <input type="tel" name="phone" placeholder="+7 XXX XXX XX XX" required>
+                </div>
+                <div class="input-group">
+                    <label>Пароль</label>
+                    <input type="password" name="password" placeholder="Введите пароль" required>
+                </div>
+                <button type="submit" class="btn">Войти</button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" class="form" method="POST" action="/register">
+                <div class="input-group">
+                    <label>Номер телефона</label>
+                    <input type="tel" name="phone" placeholder="+7 XXX XXX XX XX" required>
+                </div>
+                <div class="input-group">
+                    <label>Имя пользователя</label>
+                    <input type="text" name="username" placeholder="username_123" required>
+                </div>
+                <div class="input-group">
+                    <label>Пароль (минимум 8 символов)</label>
+                    <input type="password" name="password" placeholder="Введите пароль" required>
+                </div>
+                <div class="input-group">
+                    <label>Подтвердите пароль</label>
+                    <input type="password" name="confirm_password" placeholder="Повторите пароль" required>
+                </div>
+                <button type="submit" class="btn">Зарегистрироваться</button>
+            </form>
+
+            <div class="note">
+                <p>Регистрируясь, вы соглашаетесь с правилами Xgram</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tabs = document.querySelectorAll('.tab');
+        const forms = document.querySelectorAll('.form');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                forms.forEach(form => form.classList.remove('active'));
+                document.getElementById(`${tabName}-form`).classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

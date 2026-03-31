@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Xgram - Мессенджер</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #0a0a0a;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Main Layout */
+        .app {
+            display: flex;
+            height: 100vh;
+            background: #0f0f0f;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 380px;
+            background: #1a1a1a;
+            border-right: 1px solid #2a2a2a;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Sidebar Header */
+        .sidebar-header {
+            padding: 16px 20px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .user-details h3 {
+            color: white;
+            font-size: 18px;
+        }
+
+        .user-details p {
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        /* Search Bar */
+        .search-bar {
+            padding: 12px 16px;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 10px 16px;
+            background: #2a2a2a;
+            border: none;
+            border-radius: 24px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .search-bar input::placeholder {
+            color: #6b7280;
+        }
+
+        /* Tabs Navigation */
+        .tabs-nav {
+            display: flex;
+            background: #1a1a1a;
+            border-bottom: 1px solid #2a2a2a;
+            padding: 0 16px;
+            gap: 20px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px 0;
+            background: none;
+            border: none;
+            color: #6b7280;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .tab-btn.active {
+            color: #667eea;
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #667eea;
+        }
+
+        .tab-badge {
+            position: relative;
+        }
+
+        .badge {
+            position: absolute;
+            top: -8px;
+            right: -12px;
+            background: #ef4444;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        /* Tab Content */
+        .tab-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .tab-pane {
+            display: none;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        /* Chats List */
+        .chats-list, .contacts-list, .calls-list {
+            padding: 8px 0;
+        }
+
+        .chat-item, .contact-item, .call-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            gap: 12px;
+        }
+
+        .chat-item:hover, .contact-item:hover, .call-item:hover {
+            background: #2a2a2a;
+        }
+
+        .chat-avatar, .contact-avatar, .call-avatar {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .chat-avatar img, .contact-avatar img, .call-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .chat-info, .contact-info, .call-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-header, .contact-header, .call-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .chat-name, .contact-name, .call-name {
+            color: white;
+            font-weight: 500;
+            font-size: 16px;
+        }
+
+        .chat-time, .call-time {
+            color: #6b7280;
+            font-size: 11px;
+        }
+
+        .chat-preview {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-message {
+            color: #9ca3af;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
+        }
+
+        .chat-badge {
+            background: #667eea;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .call-type {
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .call-type.answered { color: #10b981; }
+        .call-type.missed { color: #ef4444; }
+        .call-type.outgoing { color: #f59e0b; }
+
+        /* Chat Area */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #0f0f0f;
+        }
+
+        .chat-header-area {
+            padding: 12px 20px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            display: none;
+        }
+
+        .chat-user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            cursor: pointer;
+        }
+
+        .chat-user-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            overflow: hidden;
+        }
+
+        .chat-user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .chat-user-name {
+            color: white;
+            font-weight: 600;
+            font-size: 17px;
+        }
+
+        .chat-user-status {
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .chat-actions {
+            display: flex;
+            gap: 20px;
+        }
+
+        .chat-actions button {
+            background: none;
+            border: none;
+            color: #9ca3af;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        /* Messages Area */
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%232a2a2a" opacity="0.1"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>');
+            background-repeat: repeat;
+            background-size: 30px;
+        }
+
+        .message {
+            display: flex;
+            margin-bottom: 8px;
+            max-width: 70%;
+        }
+
+        .message.outgoing {
+            align-self: flex-end;
+            justify-content: flex-end;
+        }
+
+        .message.incoming {
+            align-self: flex-start;
+        }
+
+        .message-bubble {
+            padding: 10px 14px;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+            max-width: 100%;
+        }
+
+        .message.outgoing .message-bubble {
+            background: #667eea;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.incoming .message-bubble {
+            background: #2a2a2a;
+            color: white;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-text {
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .message-media {
+            max-width: 300px;
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .message-media img, .message-media video {
+            max-width: 100%;
+            max-height: 300px;
+            object-fit: cover;
+        }
+
+        .message-file {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 12px;
+            border-radius: 12px;
+        }
+
+        .message-file i {
+            font-size: 24px;
+        }
+
+        .message-file-info {
+            flex: 1;
+        }
+
+        .message-file-name {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .message-file-size {
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        .message-meta {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 4px;
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
+        .message-time {
+            font-size: 10px;
+        }
+
+        .message-status {
+            font-size: 10px;
+        }
+
+        /* Message Input */
+        .message-input-area {
+            padding: 16px 20px;
+            background: #1a1a1a;
+            border-top: 1px solid #2a2a2a;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .attach-btn {
+            background: none;
+            border: none;
+            color: #9ca3af;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .message-input {
+            flex: 1;
+            background: #2a2a2a;
+            border: none;
+            border-radius: 24px;
+            padding: 12px 16px;
+            color: white;
+            font-size: 14px;
+            resize: none;
+            font-family: inherit;
+        }
+
+        .message-input::placeholder {
+            color: #6b7280;
+        }
+
+        .send-btn {
+            background: #667eea;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1a1a1a;
+            border-radius: 24px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            color: white;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #9ca3af;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        /* Profile Modal */
+        .profile-info {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            font-weight: 600;
+            color: white;
+            overflow: hidden;
+        }
+
+        .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-name {
+            color: white;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .profile-phone {
+            color: #6b7280;
+            margin-top: 4px;
+        }
+
+        .profile-bio {
+            color: #9ca3af;
+            margin-top: 12px;
+            padding: 0 20px;
+        }
+
+        .profile-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin: 24px 0;
+        }
+
+        .profile-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 24px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .profile-btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .profile-btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+
+        .more-menu {
+            position: relative;
+            display: inline-block;
+        }
+
+        .more-menu-content {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            background: #2a2a2a;
+            border-radius: 12px;
+            min-width: 200px;
+            margin-bottom: 8px;
+            z-index: 10;
+        }
+
+        .more-menu-content.active {
+            display: block;
+        }
+
+        .more-menu-item {
+            padding: 12px 16px;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .more-menu-item:hover {
+            background: #3a3a3a;
+        }
+
+        .more-menu-item.danger {
+            color: #ef4444;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: absolute;
+                left: -380px;
+                transition: left 0.3s;
+                z-index: 100;
+            }
+
+            .sidebar.active {
+                left: 0;
+            }
+
+            .back-btn {
+                display: block;
+            }
+
+            .chat-area {
+                width: 100%;
+            }
+        }
+
+        /* Typing indicator */
+        .typing-indicator {
+            padding: 8px 16px;
+            color: #6b7280;
+            font-size: 12px;
+            font-style: italic;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="user-info" onclick="openSettings()">
+                    <div class="avatar" id="userAvatar">
+                        {% if user['avatar'] %}
+                        <img src="/{{ user['avatar'] }}" alt="avatar">
+                        {% else %}
+                        <span>{{ user['username'][0].upper() }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="user-details">
+                        <h3 id="userName">{{ user['username'] }}</h3>
+                        <p>{{ user['phone'] }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="search-bar">
+                <input type="text" placeholder="Поиск..." id="globalSearch">
+            </div>
+
+            <div class="tabs-nav">
+                <button class="tab-btn active" data-tab="chats">
+                    <i class="fas fa-comments"></i> Чаты
+                    <span class="badge" id="totalUnreadBadge" style="display: none;">0</span>
+                </button>
+                <button class="tab-btn" data-tab="contacts">
+                    <i class="fas fa-address-book"></i> Контакты
+                </button>
+                <button class="tab-btn" data-tab="calls">
+                    <i class="fas fa-phone"></i> Звонки
+                </button>
+            </div>
+
+            <div class="tab-content">
+                <!-- Chats Tab -->
+                <div class="tab-pane active" id="chats-tab">
+                    <div class="chats-list" id="chatsList">
+                        {% for chat in chats %}
+                        <div class="chat-item" data-chat-id="{{ chat.id }}" data-user-id="{{ chat.user_id }}" onclick="openChat({{ chat.id }}, {{ chat.user_id }}, '{{ chat.username }}')">
+                            <div class="chat-avatar">
+                                {% if chat.avatar %}
+                                <img src="/{{ chat.avatar }}" alt="avatar">
+                                {% else %}
+                                <span>{{ chat.username[0].upper() }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="chat-info">
+                                <div class="chat-header">
+                                    <span class="chat-name">{{ chat.username }}</span>
+                                    {% if chat.last_message_time %}
+                                    <span class="chat-time">{{ chat.last_message_time.split()[0] }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="chat-preview">
+                                    <span class="chat-message">
+                                        {% if chat.last_file_type %}
+                                        <i class="fas fa-{% if chat.last_file_type == 'photo' %}image{% elif chat.last_file_type == 'video' %}video{% elif chat.last_file_type == 'audio' %}music{% else %}file{% endif %}"></i>
+                                        {{ chat.last_file_type }}
+                                        {% elif chat.last_message %}
+                                        {{ chat.last_message[:50] }}
+                                        {% else %}
+                                        Нет сообщений
+                                        {% endif %}
+                                    </span>
+                                    {% if chat.unread_count > 0 %}
+                                    <span class="chat-badge">{{ chat.unread_count }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Contacts Tab -->
+                <div class="tab-pane" id="contacts-tab">
+                    <div class="search-bar">
+                        <input type="text" placeholder="Найти по номеру или имени..." id="contactSearch">
+                    </div>
+                    <div class="contacts-list" id="contactsList">
+                        {% for contact in contacts %}
+                        <div class="contact-item" onclick="openChatWithUser({{ contact.id }}, '{{ contact.username }}')">
+                            <div class="contact-avatar">
+                                {% if contact.avatar %}
+                                <img src="/{{ contact.avatar }}" alt="avatar">
+                                {% else %}
+                                <span>{{ contact.username[0].upper() }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="contact-info">
+                                <div class="contact-header">
+                                    <span class="contact-name">{{ contact.username }}</span>
+                                </div>
+                                <span class="chat-message">{{ contact.phone }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Calls Tab -->
+                <div class="tab-pane" id="calls-tab">
+                    <div class="search-bar">
+                        <button class="new-call-btn" onclick="showNewCallModal()" style="width: 100%; padding: 10px; background: #667eea; border: none; border-radius: 24px; color: white; cursor: pointer;">
+                            <i class="fas fa-phone-plus"></i> Новый звонок
+                        </button>
+                    </div>
+                    <div class="calls-list" id="callsList">
+                        {% for call in call_history %}
+                        <div class="call-item" onclick="openChatWithUser({{ call.contact_id }}, '{{ call.contact_name }}')">
+                            <div class="call-avatar">
+                                {% if call.contact_avatar %}
+                                <img src="/{{ call.contact_avatar }}" alt="avatar">
+                                {% else %}
+                                <span>{{ call.contact_name[0].upper() }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="call-info">
+                                <div class="call-header">
+                                    <span class="call-name">{{ call.contact_name }}</span>
+                                    <span class="call-time">{{ call.created_at.split()[0] }}</span>
+                                </div>
+                                <div class="call-type {{ call.status }}">
+                                    <i class="fas fa-{% if call.is_outgoing %}arrow-up{% else %}arrow-down{% endif %}"></i>
+                                    {% if call.status == 'answered' %}
+                                    Принят
+                                    {% elif call.status == 'missed' %}
+                                    Пропущен
+                                    {% elif call.status == 'ringing' %}
+                                    Звонок
+                                    {% endif %}
+                                    {% if call.duration > 0 %}
+                                    ({{ call.duration }} сек)
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="chat-area" id="chatArea">
+            <div class="chat-header-area">
+                <button class="back-btn" onclick="toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="chat-user-info" id="chatUserInfo" onclick="openUserProfile()">
+                    <div class="chat-user-avatar" id="chatUserAvatar">
+                        <span>?</span>
+                    </div>
+                    <div>
+                        <div class="chat-user-name" id="chatUserName">Выберите чат</div>
+                        <div class="chat-user-status" id="chatUserStatus"></div>
+                    </div>
+                </div>
+                <div class="chat-actions">
+                    <button onclick="makeCall('audio')"><i class="fas fa-phone"></i></button>
+                    <button onclick="makeCall('video')"><i class="fas fa-video"></i></button>
+                </div>
+            </div>
+
+            <div class="messages-area" id="messagesArea">
+                <div class="empty-state">
+                    <i class="fas fa-comment-dots"></i>
+                    <p>Выберите чат чтобы начать общение</p>
+                </div>
+            </div>
+
+            <div class="message-input-area" id="messageInputArea" style="display: none;">
+                <button class="attach-btn" onclick="showAttachMenu()">
+                    <i class="fas fa-paperclip"></i>
+                </button>
+                <textarea class="message-input" id="messageInput" placeholder="Сообщение..." rows="1" onkeypress="handleKeyPress(event)"></textarea>
+                <button class="send-btn" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal" id="profileModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Профиль пользователя</h3>
+                <button class="modal-close" onclick="closeModal('profileModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="profile-info">
+                    <div class="profile-avatar" id="profileAvatar">
+                        <span>?</span>
+                    </div>
+                    <div class="profile-name" id="profileName"></div>
+                    <div class="profile-phone" id="profilePhone"></div>
+                    <div class="profile-bio" id="profileBio"></div>
+                </div>
+                <div class="profile-actions">
+                    <button class="profile-btn profile-btn-primary" onclick="callFromProfile('audio')">
+                        <i class="fas fa-phone"></i> Аудио
+                    </button>
+                    <button class="profile-btn profile-btn-primary" onclick="callFromProfile('video')">
+                        <i class="fas fa-video"></i> Видео
+                    </button>
+                    <div class="more-menu">
+                        <button class="profile-btn" onclick="toggleMoreMenu()">
+                            <i class="fas fa-ellipsis-h"></i> Ещё
+                        </button>
+                        <div class="more-menu-content" id="moreMenu">
+                            <div class="more-menu-item" onclick="deleteChat()">Удалить чат</div>
+                            <div class="more-menu-item danger" onclick="blockUser()">Заблокировать</div>
+                            <div class="more-menu-item" onclick="changeWallpaper()">Изменить обои</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Настройки</h3>
+                <button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="profile-info">
+                    <div class="profile-avatar" id="settingsAvatar" onclick="changeAvatar()">
+                        {% if user['avatar'] %}
+                        <img src="/{{ user['avatar'] }}" alt="avatar">
+                        {% else %}
+                        <span>{{ user['username'][0].upper() }}</span>
+                        {% endif %}
+                    </div>
+                    <input type="text" id="settingsUsername" value="{{ user['username'] }}" style="width: 100%; padding: 8px; background: #2a2a2a; border: none; border-radius: 8px; color: white; text-align: center; margin: 8px 0;">
+                    <div class="profile-phone">{{ user['phone'] }}</div>
+                    <textarea id="settingsBio" placeholder="О себе" style="width: 100%; padding: 8px; background: #2a2a2a; border: none; border-radius: 8px; color: white; margin-top: 12px;">{{ user['bio'] or '' }}</textarea>
+                </div>
+
+                <div style="margin-top: 24px;">
+                    <button class="profile-btn profile-btn-primary" onclick="updateProfile()" style="width: 100%; margin-bottom: 12px;">Сохранить</button>
+                    <button class="profile-btn profile-btn-primary" onclick="openFavorites()" style="width: 100%; margin-bottom: 12px;">Избранное</button>
+                    <button class="profile-btn profile-btn-primary" onclick="openPrivacySettings()" style="width: 100%; margin-bottom: 12px;">Конфиденциальность</button>
+                    <button class="profile-btn profile-btn-primary" onclick="openAppearanceSettings()" style="width: 100%; margin-bottom: 12px;">Оформление</button>
+                    <button class="profile-btn profile-btn-danger" onclick="deleteAccount()" style="width: 100%;">Удалить аккаунт</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="newCallModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Новый звонок</h3>
+                <button class="modal-close" onclick="closeModal('newCallModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="callSearch" placeholder="Поиск контакта..." style="width: 100%; padding: 10px; background: #2a2a2a; border: none; border-radius: 24px; color: white; margin-bottom: 16px;">
+                <div id="callContactsList">
+                    {% for contact in contacts %}
+                    <div class="contact-item" onclick="selectContactForCall({{ contact.id }}, '{{ contact.username }}')">
+                        <div class="contact-avatar">
+                            {% if contact.avatar %}
+                            <img src="/{{ contact.avatar }}" alt="avatar">
+                            {% else %}
+                            <span>{{ contact.username[0].upper() }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="contact-info">
+                            <span class="contact-name">{{ contact.username }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="callTypeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Выберите тип звонка</h3>
+                <button class="modal-close" onclick="closeModal('callTypeModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <button class="profile-btn profile-btn-primary" onclick="initiateCall('audio')" style="width: 100%; margin-bottom: 12px;">
+                    <i class="fas fa-phone"></i> Аудиозвонок
+                </button>
+                <button class="profile-btn profile-btn-primary" onclick="initiateCall('video')" style="width: 100%;">
+                    <i class="fas fa-video"></i> Видеозвонок
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="favoritesModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Избранное</h3>
+                <button class="modal-close" onclick="closeModal('favoritesModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <button class="profile-btn profile-btn-primary" onclick="addToFavorites()" style="width: 100%; margin-bottom: 16px;">
+                    <i class="fas fa-plus"></i> Добавить заметку или файл
+                </button>
+                <div id="favoritesList">
+                    {% for fav in favorites %}
+                    <div class="favorite-item" style="background: #2a2a2a; border-radius: 12px; padding: 12px; margin-bottom: 12px;">
+                        {% if fav.file_path %}
+                        <div class="message-file" onclick="downloadFile('/{{ fav.file_path }}', '{{ fav.file_name }}')">
+                            <i class="fas fa-file"></i>
+                            <div class="message-file-info">
+                                <div class="message-file-name">{{ fav.file_name }}</div>
+                                <div class="message-file-size">{{ (fav.file_size / 1024)|round|int }} KB</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if fav.note %}
+                        <div class="message-text" style="color: white;">{{ fav.note }}</div>
+                        {% endif %}
+                        <div class="message-time" style="color: #6b7280; font-size: 11px; margin-top: 8px;">{{ fav.created_at }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="privacyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Конфиденциальность</h3>
+                <button class="modal-close" onclick="closeModal('privacyModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="privacy-setting" style="margin-bottom: 16px;">
+                    <label style="color: white; display: block; margin-bottom: 8px;">Кто может видеть время захода</label>
+                    <select id="privacyLastSeen" style="width: 100%; padding: 8px; background: #2a2a2a; border: none; border-radius: 8px; color: white;">
+                        <option value="everyone">Все</option>
+                        <option value="contacts">Контакты</option>
+                        <option value="nobody">Никто</option>
+                    </select>
+                </div>
+                <div class="privacy-setting" style="margin-bottom: 16px;">
+                    <label style="color: white; display: block; margin-bottom: 8px;">Кто может видеть фото профиля</label>
+                    <select id="privacyPhoto" style="width: 100%; padding: 8px; background: #2a2a2a; border: none; border-radius: 8px; color: white;">
+                        <option value="everyone">Все</option>
+                        <option value="contacts">Контакты</option>
+                        <option value="nobody">Никто</option>
+                    </select>
+                </div>
+                <div class="privacy-setting" style="margin-bottom: 16px;">
+                    <label style="color: white; display: block; margin-bottom: 8px;">Кто может пересылать сообщения</label>
+                    <select id="privacyForward" style="width: 100%; padding: 8px; background: #2a2a2a; border: none; border-radius: 8px; color: white;">
+                        <option value="everyone">Все</option>
+                        <option value="contacts">Контакты</option>
+                        <option value="nobody">Никто</option>
+                    </select>
+                </div>
+                <div class="privacy-setting" style="margin-bottom: 16px;">
+                    <label style="color: white; display: block; margin-bottom: 8px;">Кто может звонить</label>
+                    <select id="privacyCalls" style="width: 100%; padding: 8px; background: #2a2a2a; border: none; border-radius: 8px; color: white;">
+                        <option value="everyone">Все</option>
+                        <option value="contacts">Контакты</option>
+                        <option value="nobody">Никто</option>
+                    </select>
+                </div>
+                <div class="privacy-setting" style="margin-bottom: 16px;">
+                    <label style="color: white; display: block; margin-bottom: 8px;">Кто может писать</label>
+                    <select id="privacyMessages" style="width: 100%; padding: 8px; background: #2a2a2a; border: none; border-radius: 8px; color: white;">
+                        <option value="everyone">Все</option>
+                        <option value="contacts">Контакты</option>
+                        <option value="nobody">Никто</option>
+                    </select>
+                </div>
+                <button class="profile-btn profile-btn-primary" onclick="savePrivacySettings()" style="width: 100%;">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="appearanceModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Оформление</h3>
+                <button class="modal-close" onclick="closeModal('appearanceModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 16px;">
+                    <label style="color: white; display: block; margin-bottom: 8px;">Тема</label>
+                    <select id="themeSelect" style="width: 100%; padding: 8px; background: #2a2a2a; border: none; border-radius: 8px; color: white;" onchange="changeTheme()">
+                        <option value="dark">Тёмная</option>
+                        <option value="light">Светлая</option>
+                        <option value="classic">Классическая</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 16px;">
+                    <label style="color: white; display: block; margin-bottom: 8px;">Размер текста</label>
+                    <input type="range" id="fontSize" min="12" max="20" value="14" onchange="changeFontSize()">
+                </div>
+                <div style="margin-bottom: 16px;">
+                    <label style="color: white; display: block; margin-bottom: 8px;">Обои чата</label>
+                    <button class="profile-btn profile-btn-primary" onclick="changeChatWallpaper()" style="width: 100%;">Выбрать обои</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" style="display: none;" multiple>
+    <input type="file" id="avatarInput" style="display: none;" accept="image/*">
+
+    <script>
+        let socket = null;
+        let currentChatId = null;
+        let currentUserId = null;
+        let currentUsername = null;
+        let typingTimeout = null;
+        let selectedCallContact = null;
+        let selectedCallContactName = null;
+
+        // Initialize socket connection
+        function initSocket() {
+            socket = io();
+
+            socket.on('connect', function() {
+                console.log('Connected to server');
+            });
+
+            socket.on('new_message', function(data) {
+                if (data.chat_id == currentChatId) {
+                    displayMessage(data.message);
+                    markMessagesAsRead();
+                }
+                updateChatsList();
+            });
+
+            socket.on('messages_read', function(data) {
+                if (data.chat_id == currentChatId) {
+                    updateMessageStatuses();
+                }
+                updateChatsList();
+            });
+
+            socket.on('user_typing', function(data) {
+                if (currentUserId == data.user_id) {
+                    showTypingIndicator(data.username);
+                }
+            });
+
+            socket.on('incoming_call', function(data) {
+                showIncomingCall(data);
+            });
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+                document.getElementById(`${tab}-tab`).classList.add('active');
+            });
+        });
+
+        // Global search
+        document.getElementById('globalSearch').addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase();
+            if (query.length > 2) {
+                searchUsers(query);
+            }
+        });
+
+        // Contact search
+        document.getElementById('contactSearch').addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase();
+            filterContacts(query);
+        });
+
+        // Call search
+        document.getElementById('callSearch').addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase();
+            filterCallContacts(query);
+        });
+
+        function searchUsers(query) {
+            fetch(`/api/search_users?q=${encodeURIComponent(query)}`)
+                .then(res => res.json())
+                .then(users => {
+                    const contactsList = document.getElementById('contactsList');
+                    if (users.length > 0) {
+                        contactsList.innerHTML = users.map(user => `
+                            <div class="contact-item" onclick="addContactAndChat(${user.id}, '${user.username}')">
+                                <div class="contact-avatar">
+                                    ${user.avatar ? `<img src="/${user.avatar}">` : `<span>${user.username[0].toUpperCase()}</span>`}
+                                </div>
+                                <div class="contact-info">
+                                    <div class="contact-header">
+                                        <span class="contact-name">${user.username}</span>
+                                    </div>
+                                    <span class="chat-message">${user.phone} ${user.bio ? '• ' + user.bio : ''}</span>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        contactsList.innerHTML = '<div class="empty-state"><p>Пользователи не найдены</p></div>';
+                    }
+                });
+        }
+
+        function filterContacts(query) {
+            const items = document.querySelectorAll('#contactsList .contact-item');
+            items.forEach(item => {
+                const name = item.querySelector('.contact-name').innerText.toLowerCase();
+                if (name.includes(query) || query === '') {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function filterCallContacts(query) {
+            const items = document.querySelectorAll('#callContactsList .contact-item');
+            items.forEach(item => {
+                const name = item.querySelector('.contact-name').innerText.toLowerCase();
+                if (name.includes(query) || query === '') {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function addContactAndChat(userId, username) {
+            fetch('/api/add_contact', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({contact_id: userId})
+            }).then(() => {
+                openChatWithUser(userId, username);
+            });
+        }
+
+        function openChat(chatId, userId, username) {
+            currentChatId = chatId;
+            currentUserId = userId;
+            currentUsername = username;
+
+            fetch(`/api/get_chat/${userId}`)
+                .then(res => res.json())
+                .then(data => {
+                    displayMessages(data.messages);
+                    updateChatHeader(data.other_user);
+                    document.getElementById('messageInputArea').style.display = 'flex';
+
+                    socket.emit('join_chat', {chat_id: chatId});
+                    markMessagesAsRead();
+                });
+
+            // Update active chat in sidebar
+            document.querySelectorAll('.chat-item').forEach(item => {
+                item.style.background = '';
+            });
+            event.currentTarget.style.background = '#2a2a2a';
+
+            // On mobile, close sidebar
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('active');
+            }
+        }
+
+        function openChatWithUser(userId, username) {
+            fetch(`/api/get_chat/${userId}`)
+                .then(res => res.json())
+                .then(data => {
+                    currentChatId = data.chat_id;
+                    currentUserId = userId;
+                    currentUsername = username;
+
+                    displayMessages(data.messages);
+                    updateChatHeader(data.other_user);
+                    document.getElementById('messageInputArea').style.display = 'flex';
+
+                    socket.emit('join_chat', {chat_id: data.chat_id});
+                    markMessagesAsRead();
+
+                    // Add to sidebar chats if not exists
+                    addChatToSidebar(data.chat_id, userId, username, data.other_user.avatar);
+                });
+        }
+
+        function addChatToSidebar(chatId, userId, username, avatar) {
+            const chatsList = document.getElementById('chatsList');
+            const existing = document.querySelector(`.chat-item[data-chat-id="${chatId}"]`);
+            if (!existing) {
+                const chatHtml = `
+                    <div class="chat-item" data-chat-id="${chatId}" data-user-id="${userId}" onclick="openChat(${chatId}, ${userId}, '${username}')">
+                        <div class="chat-avatar">
+                            ${avatar ? `<img src="/${avatar}">` : `<span>${username[0].toUpperCase()}</span>`}
+                        </div>
+                        <div class="chat-info">
+                            <div class="chat-header">
+                                <span class="chat-name">${username}</span>
+                            </div>
+                            <div class="chat-preview">
+                                <span class="chat-message">Новый чат</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                chatsList.insertAdjacentHTML('afterbegin', chatHtml);
+            }
+        }
+
+        function displayMessages(messages) {
+            const container = document.getElementById('messagesArea');
+            if (messages.length === 0) {
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-comment-dots"></i><p>Нет сообщений. Напишите что-нибудь!</p></div>';
+                return;
+            }
+
+            container.innerHTML = messages.map(msg => formatMessage(msg)).join('');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function formatMessage(msg) {
+            const isOutgoing = msg.sender_id == {{ user.id }};
+            const status = isOutgoing ? (msg.is_read ? '<i class="fas fa-check-double"></i>' : '<i class="fas fa-check"></i>') : '';
+            const time = new Date(msg.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+            let contentHtml = '';
+            if (msg.file_path) {
+                if (msg.file_type === 'photo') {
+                    contentHtml = `<div class="message-media" onclick="openMedia('/${msg.file_path}')"><img src="/${msg.file_path}" alt="photo"></div>`;
+                } else if (msg.file_type === 'video') {
+                    contentHtml = `<div class="message-media" onclick="openMedia('/${msg.file_path}')"><video src="/${msg.file_path}" controls></video></div>`;
+                } else {
+                    contentHtml = `
+                        <div class="message-file" onclick="downloadFile('/${msg.file_path}', '${msg.file_name}')">
+                            <i class="fas fa-file"></i>
+                            <div class="message-file-info">
+                                <div class="message-file-name">${msg.file_name}</div>
+                                <div class="message-file-size">${Math.round(msg.file_size / 1024)} KB</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            if (msg.content) {
+                contentHtml += `<div class="message-text">${escapeHtml(msg.content)}</div>`;
+            }
+
+            return `
+                <div class="message ${isOutgoing ? 'outgoing' : 'incoming'}">
+                    <div class="message-bubble">
+                        ${contentHtml}
+                        <div class="message-meta">
+                            <span class="message-time">${time}</span>
+                            <span class="message-status">${status}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function displayMessage(msg) {
+            const container = document.getElementById('messagesArea');
+            if (container.querySelector('.empty-state')) {
+                container.innerHTML = '';
+            }
+            container.insertAdjacentHTML('beforeend', formatMessage(msg));
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function updateChatHeader(user) {
+            const avatarDiv = document.getElementById('chatUserAvatar');
+            if (user.avatar) {
+                avatarDiv.innerHTML = `<img src="/${user.avatar}" alt="avatar">`;
+            } else {
+                avatarDiv.innerHTML = `<span>${user.username[0].toUpperCase()}</span>`;
+            }
+            document.getElementById('chatUserName').innerText = user.username;
+            document.getElementById('chatUserStatus').innerText = user.bio || 'Был(-а) недавно';
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            if (!content) return;
+
+            const formData = new FormData();
+            formData.append('chat_id', currentChatId);
+            formData.append('content', content);
+
+            fetch('/api/send_message', {
+                method: 'POST',
+                body: formData
+            }).then(res => res.json()).then(data => {
+                if (data.success) {
+                    displayMessage(data.message);
+                    input.value = '';
+                    input.style.height = 'auto';
+                    updateChatsList();
+                }
+            });
+        }
+
+        function sendFile(file) {
+            const formData = new FormData();
+            formData.append('chat_id', currentChatId);
+            formData.append('file', file);
+
+            fetch('/api/send_message', {
+                method: 'POST',
+                body: formData
+            }).then(res => res.json()).then(data => {
+                if (data.success) {
+                    displayMessage(data.message);
+                    updateChatsList();
+                }
+            });
+        }
+
+        function showAttachMenu() {
+            document.getElementById('fileInput').click();
+        }
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            Array.from(e.target.files).forEach(file => {
+                sendFile(file);
+            });
+            this.value = '';
+        });
+
+        function markMessagesAsRead() {
+            if (currentChatId) {
+                fetch('/api/mark_read', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({chat_id: currentChatId})
+                });
+            }
+        }
+
+        function updateChatsList() {
+            fetch('/chat')
+                .then(res => res.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newChatsList = doc.querySelector('#chatsList').innerHTML;
+                    document.querySelector('#chatsList').innerHTML = newChatsList;
+
+                    // Update unread count badge
+                    const unreadCount = document.querySelectorAll('.chat-badge').length;
+                    const badge = document.getElementById('totalUnreadBadge');
+                    if (unreadCount > 0) {
+                        badge.innerText = unreadCount;
+                        badge.style.display = 'inline-block';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                });
+        }
+
+        function updateMessageStatuses() {
+            document.querySelectorAll('.message.outgoing .message-status').forEach(status => {
+                status.innerHTML = '<i class="fas fa-check-double"></i>';
+            });
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+
+            // Typing indicator
+            if (socket && currentChatId) {
+                if (typingTimeout) clearTimeout(typingTimeout);
+                socket.emit('typing', {chat_id: currentChatId});
+                typingTimeout = setTimeout(() => {}, 1000);
+            }
+        }
+
+        function showTypingIndicator(username) {
+            const status = document.getElementById('chatUserStatus');
+            const originalStatus = status.innerText;
+            status.innerText = `${username} печатает...`;
+            setTimeout(() => {
+                status.innerText = originalStatus;
+            }, 2000);
+        }
+
+        function openUserProfile() {
+            if (currentUserId) {
+                fetch(`/api/get_chat/${currentUserId}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const user = data.other_user;
+                        const avatarDiv = document.getElementById('profileAvatar');
+                        if (user.avatar) {
+                            avatarDiv.innerHTML = `<img src="/${user.avatar}" alt="avatar">`;
+                        } else {
+                            avatarDiv.innerHTML = `<span>${user.username[0].toUpperCase()}</span>`;
+                        }
+                        document.getElementById('profileName').innerText = user.username;
+                        document.getElementById('profilePhone').innerText = user.phone;
+                        document.getElementById('profileBio').innerText = user.bio || 'Нет описания';
+                        openModal('profileModal');
+                    });
+            }
+        }
+
+        function openSettings() {
+            openModal('settingsModal');
+        }
+
+        function updateProfile() {
+            const formData = new FormData();
+            formData.append('username', document.getElementById('settingsUsername').value);
+            formData.append('bio', document.getElementById('settingsBio').value);
+
+            fetch('/api/update_profile', {
+                method: 'POST',
+                body: formData
+            }).then(() => {
+                location.reload();
+            });
+        }
+
+        function changeAvatar() {
+            document.getElementById('avatarInput').click();
+        }
+
+        document.getElementById('avatarInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('avatar', file);
+                fetch('/api/update_profile', {
+                    method: 'POST',
+                    body: formData
+                }).then(() => {
+                    location.reload();
+                });
+            }
+        });
+
+        function openFavorites() {
+            fetch('/api/get_favorites')
+                .then(res => res.json())
+                .then(data => {
+                    const container = document.getElementById('favoritesList');
+                    container.innerHTML = data.favorites.map(fav => `
+                        <div class="favorite-item" style="background: #2a2a2a; border-radius: 12px; padding: 12px; margin-bottom: 12px;">
+                            ${fav.file_path ? `
+                            <div class="message-file" onclick="downloadFile('/${fav.file_path}', '${fav.file_name}')">
+                                <i class="fas fa-file"></i>
+                                <div class="message-file-info">
+                                    <div class="message-file-name">${fav.file_name}</div>
+                                    <div class="message-file-size">${Math.round(fav.file_size / 1024)} KB</div>
+                                </div>
+                            </div>
+                            ` : ''}
+                            ${fav.note ? `<div class="message-text" style="color: white;">${escapeHtml(fav.note)}</div>` : ''}
+                            <div class="message-time" style="color: #6b7280; font-size: 11px; margin-top: 8px;">${fav.created_at}</div>
+                        </div>
+                    `).join('');
+                    closeModal('settingsModal');
+                    openModal('favoritesModal');
+                });
+        }
+
+        function addToFavorites() {
+            const note = prompt('Введите заметку:');
+            if (note) {
+                const formData = new FormData();
+                formData.append('note', note);
+                fetch('/api/add_to_favorites', {
+                    method: 'POST',
+                    body: formData
+                }).then(() => {
+                    openFavorites();
+                });
+            } else {
+                document.getElementById('fileInput').onchange = function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        fetch('/api/add_to_favorites', {
+                            method: 'POST',
+                            body: formData
+                        }).then(() => {
+                            openFavorites();
+                        });
+                    }
+                };
+                document.getElementById('fileInput').click();
+            }
+        }
+
+        function openPrivacySettings() {
+            fetch('/api/get_privacy_settings')
+                .then(res => res.json())
+                .then(settings => {
+                    document.getElementById('privacyLastSeen').value = settings.last_seen;
+                    document.getElementById('privacyPhoto').value = settings.profile_photo;
+                    document.getElementById('privacyForward').value = settings.forward_messages;
+                    document.getElementById('privacyCalls').value = settings.calls;
+                    document.getElementById('privacyMessages').value = settings.messages;
+                    closeModal('settingsModal');
+                    openModal('privacyModal');
+                });
+        }
+
+        function savePrivacySettings() {
+            const settings = {
+                last_seen: document.getElementById('privacyLastSeen').value,
+                profile_photo: document.getElementById('privacyPhoto').value,
+                forward_messages: document.getElementById('privacyForward').value,
+                calls: document.getElementById('privacyCalls').value,
+                messages: document.getElementById('privacyMessages').value
+            };
+
+            fetch('/api/update_privacy', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(settings)
+            }).then(() => {
+                closeModal('privacyModal');
+            });
+        }
+
+        function openAppearanceSettings() {
+            closeModal('settingsModal');
+            openModal('appearanceModal');
+        }
+
+        function changeTheme() {
+            const theme = document.getElementById('themeSelect').value;
+            if (theme === 'light') {
+                document.body.style.background = '#f0f0f0';
+            } else {
+                document.body.style.background = '#0f0f0f';
+            }
+            fetch('/api/update_settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({theme: theme})
+            });
+        }
+
+        function changeFontSize() {
+            const size = document.getElementById('fontSize').value;
+            document.body.style.fontSize = size + 'px';
+            fetch('/api/update_settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({font_size: size})
+            });
+        }
+
+        function changeChatWallpaper() {
+            const url = prompt('Введите URL изображения для обоев:');
+            if (url) {
+                document.getElementById('messagesArea').style.backgroundImage = `url(${url})`;
+                fetch('/api/update_settings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({chat_wallpaper: url})
+                });
+            }
+        }
+
+        function showNewCallModal() {
+            openModal('newCallModal');
+        }
+
+        function selectContactForCall(userId, username) {
+            selectedCallContact = userId;
+            selectedCallContactName = username;
+            closeModal('newCallModal');
+            openModal('callTypeModal');
+        }
+
+        function initiateCall(type) {
+            if (selectedCallContact) {
+                makeCallToUser(selectedCallContact, type);
+                closeModal('callTypeModal');
+            }
+        }
+
+        function makeCall(type) {
+            if (currentUserId) {
+                makeCallToUser(currentUserId, type);
+            }
+        }
+
+        function callFromProfile(type) {
+            if (currentUserId) {
+                makeCallToUser(currentUserId, type);
+                closeModal('profileModal');
+            }
+        }
+
+        function makeCallToUser(userId, type) {
+            fetch('/api/make_call', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    receiver_id: userId,
+                    call_type: type
+                })
+            }).then(() => {
+                alert(`Звонок ${type === 'audio' ? 'аудио' : 'видео'} пользователю инициирован`);
+            });
+        }
+
+        function showIncomingCall(data) {
+            if (confirm(`${data.caller_name} звонит вам (${data.call_type === 'audio' ? 'аудио' : 'видео'}). Принять?`)) {
+                fetch('/api/answer_call', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({call_id: data.call_id})
+                });
+            } else {
+                fetch('/api/end_call', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({call_id: data.call_id})
+                });
+            }
+        }
+
+        function deleteChat() {
+            if (confirm('Удалить этот чат?')) {
+                // Implement delete chat
+                closeModal('profileModal');
+            }
+        }
+
+        function blockUser() {
+            if (confirm('Заблокировать этого пользователя?')) {
+                // Implement block user
+                closeModal('profileModal');
+            }
+        }
+
+        function changeWallpaper() {
+            changeChatWallpaper();
+            closeModal('profileModal');
+        }
+
+        function deleteAccount() {
+            const confirmation = prompt('Для удаления аккаунта введите ваш номер телефона или имя пользователя:');
+            if (confirmation) {
+                fetch('/api/delete_account', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({confirmation: confirmation})
+                }).then(res => res.json()).then(data => {
+                    if (data.success) {
+                        window.location.href = '/login';
+                    } else {
+                        alert('Неверное подтверждение');
+                    }
+                });
+            }
+        }
+
+        function downloadFile(url, filename) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function openMedia(url) {
+            window.open(url, '_blank');
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function toggleMoreMenu() {
+            document.getElementById('moreMenu').classList.toggle('active');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Close modals on outside click
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('active');
+                }
+            });
+        });
+
+        // Auto-resize textarea
+        document.getElementById('messageInput').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+        });
+
+        // Initialize
+        initSocket();
+
+        // Update unread badge on load
+        const unreadCount = document.querySelectorAll('.chat-badge').length;
+        if (unreadCount > 0) {
+            document.getElementById('totalUnreadBadge').innerText = unreadCount;
+            document.getElementById('totalUnreadBadge').style.display = 'inline-block';
+        }
+    </script>
+</body>
+</html>
