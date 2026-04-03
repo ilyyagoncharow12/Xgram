@@ -3,15 +3,27 @@ import uuid
 import re
 import sqlite3
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.utils import secure_filename
+
 from PIL import Image
-import io
+
+
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'swillgram-secret-key'
+
+# ==================== НАСТРОЙКИ СЕССИИ (ПОСТОЯННЫЙ ВХОД НА 30 ДНЕЙ) ====================
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'swillgram-super-secret-key-2024')
+app.config['SESSION_PERMANENT'] = True
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)  # 30 дней
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_COOKIE_SECURE'] = False  # Для локальной разработки
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+# ==================================================================================
+
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
@@ -323,7 +335,6 @@ def delete_message(message_id, user_id, delete_for_all=False):
     if delete_for_all:
         cursor.execute('UPDATE messages SET is_deleted = 1, deleted_for_all = 1 WHERE id = ?', (message_id,))
     else:
-        # Для себя - просто помечаем как удаленное для этого пользователя
         cursor.execute('UPDATE messages SET is_deleted = 1 WHERE id = ?', (message_id,))
     conn.commit()
     conn.close()
@@ -467,14 +478,12 @@ def update_user_settings(user_id, **kwargs):
 def resize_and_crop_image(image_path, size=(500, 500)):
     """Обрезаем и ресайзим изображение в квадрат"""
     img = Image.open(image_path)
-    # Обрезаем до квадрата
     min_size = min(img.size)
     left = (img.size[0] - min_size) / 2
     top = (img.size[1] - min_size) / 2
     right = (img.size[0] + min_size) / 2
     bottom = (img.size[1] + min_size) / 2
     img = img.crop((left, top, right, bottom))
-    # Ресайзим
     img = img.resize(size, Image.Resampling.LANCZOS)
     img.save(image_path)
 
@@ -501,6 +510,7 @@ def login():
             session['user_id'] = user['id']
             session['username'] = user['username']
             session['phone'] = user['phone']
+            session.permanent = True  # ДЕЛАЕМ СЕССИЮ ПОСТОЯННОЙ!
             update_last_seen(user['id'])
             return redirect(url_for('chat_page'))
         return render_template('login.html', error='Неверный логин или пароль')
@@ -527,6 +537,7 @@ def register():
             session['user_id'] = user_id
             session['username'] = username
             session['phone'] = phone
+            session.permanent = True  # ДЕЛАЕМ СЕССИЮ ПОСТОЯННОЙ!
             update_last_seen(user_id)
             return redirect(url_for('chat_page'))
         return render_template('register.html', error='Пользователь уже существует')
@@ -805,15 +816,71 @@ def api_answer_call():
     return jsonify({'success': True})
 
 
-@app.route('/api/end_call', methods=['POST'])
-def api_end_call():
+@app.route('/api/reject_call', methods=['POST'])
+def api_reject_call():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json()
+    call_id = data.get('call_id')
+    update_call_status(call_id, 'rejected')
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM calls WHERE id = ?', (call_id,))
+    call = cursor.fetchone()
+    conn.close()
+
+    socketio.emit('call_rejected', {
+        'call_id': call_id
+    }, room=f"user_{call['caller_id']}")
+
+    return jsonify({'success': True})
+
+
+@app.route('/api/end_call_route', methods=['POST'])
+def api_end_call_route():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
 
     data = request.get_json()
     call_id = data.get('call_id')
     duration = data.get('duration', 0)
+
     update_call_status(call_id, 'ended', duration)
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM calls WHERE id = ?', (call_id,))
+    call = cursor.fetchone()
+    conn.close()
+
+    other_user_id = call['caller_id'] if call['receiver_id'] == session['user_id'] else call['receiver_id']
+
+    socketio.emit('call_ended', {
+        'call_id': call_id,
+        'duration': duration
+    }, room=f"user_{other_user_id}")
+
+    return jsonify({'success': True})
+
+
+@app.route('/api/webrtc_signal', methods=['POST'])
+def api_webrtc_signal():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json()
+    target_user_id = data.get('target_user_id')
+    signal_data = data.get('signal_data')
+    signal_type = data.get('signal_type')
+
+    socketio.emit('webrtc_signal', {
+        'from_user_id': session['user_id'],
+        'signal_type': signal_type,
+        'signal_data': signal_data
+    }, room=f"user_{target_user_id}")
+
     return jsonify({'success': True})
 
 
@@ -859,7 +926,6 @@ def api_add_to_favorites():
 
     fav_id = add_to_favorites(session['user_id'], file_type, file_path, file_name, note)
 
-    # Отправляем заметку в чат "Избранное"
     if note:
         chat_id = get_or_create_chat(session['user_id'], session['user_id'])
         if chat_id:
@@ -907,7 +973,6 @@ def api_update_profile():
             os.makedirs(folder, exist_ok=True)
             file_path = os.path.join(folder, unique_name)
             file.save(file_path)
-            # Ресайзим и обрезаем аватарку
             resize_and_crop_image(file_path)
             updates['avatar'] = f"uploads/avatars/{unique_name}"
 
@@ -1064,6 +1129,39 @@ def handle_typing(data):
             'user_id': session['user_id'],
             'username': session['username']
         }, room=f"chat_{chat_id}")
+
+
+@socketio.on('webrtc_offer')
+def handle_webrtc_offer(data):
+    if 'user_id' in session:
+        target_user_id = data.get('target_user_id')
+        offer = data.get('offer')
+        emit('webrtc_offer', {
+            'from_user_id': session['user_id'],
+            'offer': offer
+        }, room=f"user_{target_user_id}")
+
+
+@socketio.on('webrtc_answer')
+def handle_webrtc_answer(data):
+    if 'user_id' in session:
+        target_user_id = data.get('target_user_id')
+        answer = data.get('answer')
+        emit('webrtc_answer', {
+            'from_user_id': session['user_id'],
+            'answer': answer
+        }, room=f"user_{target_user_id}")
+
+
+@socketio.on('webrtc_ice')
+def handle_webrtc_ice(data):
+    if 'user_id' in session:
+        target_user_id = data.get('target_user_id')
+        ice_candidate = data.get('ice_candidate')
+        emit('webrtc_ice', {
+            'from_user_id': session['user_id'],
+            'ice_candidate': ice_candidate
+        }, room=f"user_{target_user_id}")
 
 
 if __name__ == '__main__':
